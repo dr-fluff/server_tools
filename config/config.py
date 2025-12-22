@@ -3,31 +3,7 @@ import tomli_w
 import os
 import logging
 
-default_global_config_path = "configs/global.toml"
-default_telegram_config_path = "configs/telegram.toml"
-default_router_config_path = "configs/router.toml"
-
-default_config_global = {
-    "log_level": "INFO",
-    "logging_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "logging_file": "app.log",
-}
-
-default_config_telegram = {
-    "bot_token": "",
-    "chat_id": "",
-}
-
-default_config_router = {
-    "ssh_hostname": "192.168.1.1",
-    "ssh_key_path": "",
-    "username": "",
-    "password": "",
-    "ssh_port": 22,
-}
-CONFIG_GLOBAL = 0
-CONFIG_TELEGRAM = 1
-CONFIG_ROUTER = 2
+from config import consts
 
 class Config:
     def __init__(self, config_file_path: str, config_type: int = 0, logger: logging.Logger = None):
@@ -43,12 +19,12 @@ class Config:
             self.init_default(config_type)
     
     def init_default(self, config_type: int):
-        if config_type == CONFIG_GLOBAL:
-            self.create_default(default_config_global)
-        elif config_type == CONFIG_TELEGRAM:
-            self.create_default(default_config_telegram)
-        elif config_type == CONFIG_ROUTER:
-            self.create_default(default_config_router)
+        if config_type == consts.CONFIG_GLOBAL:
+            self.create_default(consts.default_config_global)
+        elif config_type == consts.CONFIG_TELEGRAM:
+            self.create_default(consts.default_config_telegram)
+        elif config_type == consts.CONFIG_ROUTER:
+            self.create_default(consts.default_config_router)
         else:
             raise ValueError("Invalid config type")
     

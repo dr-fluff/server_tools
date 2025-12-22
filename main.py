@@ -1,6 +1,7 @@
 from rich import print
 import logging
 import sys
+import queue
 
 import router_utils
 import config
@@ -29,19 +30,41 @@ def main() -> None:
     logger = logging.getLogger(__name__)
     logger.setLevel(global_config.get("log_level", "INFO"))
     logger.info("Logger initialized")
-
-    # telegram_config = config.Config("configs/telegram.toml", config_type=config.CONFIG_TELEGRAM, logger=logger)
-    # telegram_bot.init(telegram_config, logger=logger)
+    
+    try:
+        telegram_config = config.Config("configs/telegram.toml", config_type=config.CONFIG_TELEGRAM, logger=logger)
+        command_queue = queue.Queue()
+        bot = telegram_bot.TelegramBot(telegram_config, command_queue=command_queue)
+        bot.print_config()
+        bot.start()
+        
+    except Exception as e:
+        logger.error(f"Error initializing Telegram bot: {e}")
+        sys.exit(1)
 
     try:
         router_config = config.Config("configs/router.toml", config_type=config.CONFIG_ROUTER, logger=logger)
+        router = router_utils.init_router_connection(router_config, logger=logger)
+        
     except Exception as e:
         logger.error(f"Error loading router configuration: {e}")
         sys.exit(1)
 
-    router = router_utils.init_router_connection(router_config, logger=logger)
+
+    # Main loop
+    while True:
+        try:
+            command = command_queue.get(timeout=1)  # Wait for commands from bot
+            print(f"Processing command from Telegram: {command}")
+            # Here you can handle the command in your main program
+        except queue.Empty:
+            pass
     
-    disconnect_all(router, None, logger)
+        if KeyboardInterrupt:
+            print("Shutting down...")
+            disconnect_all(router, bot, logger)
+            break
+    
 
 if __name__ == "__main__":
     main()

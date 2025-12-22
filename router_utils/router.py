@@ -64,7 +64,13 @@ class Router:
             )
         
     def get_status(self):
-        pass
+        try:
+            stdin, stdout, stderr = self.ssh_client.exec_command("uptime")
+            status = stdout.read().decode()
+            return status
+        except Exception as e:
+            self.logger.error(f"Failed to get router status: {e}")
+            raise e
     
     def restart(self):
         try:
@@ -101,13 +107,14 @@ class Router:
             raise e
         
 
-    def get_bandwidth_usage(self):
-        pass
-
 def init_router_ip_watcher(router, logger=None):
     pass
 
 def init_router_connection(config, logger=None):
     router = Router(config, logger)
+    
+    status = router.get_status()
+    print(f"[green]Router status: {status}[/green]")
+    
     return router
     
