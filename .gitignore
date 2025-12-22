@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.DS_Store
+.gitignore
+configs/global.toml
+.gitignore
+configs/router.toml
+configs/telegram.toml
+configs/roter.toml
+.gitignore
+uv.lock
