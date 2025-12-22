@@ -1,71 +1,113 @@
-
-import logging
 import os
-import json
 import logging
-
-logging.basicConfig(
-            filename="router.log", 
-            level=logging.DEBUG,
-            format="%(asctime)s - %(levelname)s - %(message)s"
-        )
+import tomllib
+import tomli_w
+import threading
+from rich import print
+import paramiko
 
 class Router:
-    def __init__(self, config_path: str):
-        self.config = {}
-        self.config_path = config_path
-
-    def load_config(self):
-            try:
-                # Check if the file exists and is not empty
-                if not os.path.exists(self.config_path):
-                    raise FileNotFoundError(f"File '{self.config_path}' does not exist.")
-                if os.stat(self.config_path).st_size == 0:
-                    raise ValueError(f"File '{self.config_path}' is empty.")
-
-                # Open and load JSON content
-                with open(self.config_path, 'r', encoding='utf-8') as file:
-                    data = json.load(file)
-                    logging.info(f"Successfully read the file: {self.config_path}")
-                    self.config = data.get("router", {})
-
-            except FileNotFoundError as e:
-                logging.error(f"Error: {e}")
-                print(f"Error: {e}")
-
-            except ValueError as e:
-                logging.error(f"Error: {e}")
-                print(f"Error: {e}")
+    def __init__(self, config, logger=None):
+        self.logger = logger or logging.getLogger(__name__)
+        self.config = config
+        self.lock = threading.Lock()
+        self.ssh_client = None
+        self.ip = None
+        self.devices = []
         
-            except json.JSONDecodeError as e:
-                logging.error(f"Error decoding JSON: {e}")
-                print(f"Error decoding JSON: {e}")
+        try:
+            self.ssh_connect()
+        except Exception as e:
+            self.logger.error(f"Failed to connect to router: {e}")
+            raise e
         
-            except Exception as e:
-                logging.error(f"Unexpected error: {e}")
-                print(f"Unexpected error: {e}")
+        try:
+            self.ip = self.get_ip_address()
+        except Exception as e:
+            self.logger.error(f"Failed to get router IP address: {e}")
+            raise e
+        
+        try:
+            self.devices = self.get_connected_devices()
+        except Exception as e:
+            self.logger.error(f"Failed to get connected devices: {e}")
+            raise e
+    
+    def print_config(self):
+        print("Router config:")
+        for key, value in self.config.config.items():
+            print(f"[cyan]{key}[/cyan]: {value}")
+
+    def ssh_connect(self):
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        hostname = self.config.get("ssh_hostname")
+        port = self.config.get("ssh_port", 22)
+        username = self.config.get("username")
+        password = self.config.get("password")
+        key_filename=self.config.get("ssh_key_path")
+
+        if self.config.get("ssh_key_path") is not None and os.path.exists(self.config.get("ssh_key_path")):
+            self.ssh_client.connect(
+                hostname=hostname,
+                port=port,
+                username=username,
+                key_filename=key_filename,
+            )
+        else:
+            self.ssh_client.connect(
+                hostname=hostname,
+                port=port,
+                username=username,
+                password=password,
+            )
+        
+    def get_status(self):
+        pass
     
     def restart(self):
-        # Simulate router restart
-        print("Router is restarting...")
-        # Here would be the actual restart logic
+        try:
+            stdin, stdout, stderr = self.ssh_client.exec_command("reboot")
+            self.logger.info("Router is restarting")
+        except Exception as e:
+            self.logger.error(f"Failed to restart router: {e}")
+            raise e
+
+    def disconnect(self):
+        if self.ssh_client:
+            self.ssh_client.close()
+            self.logger.info("SSH connection closed")
     
-    def print_status(self):
-        print("Router configuration:")
-        for key, value in self.config.items():
-            print(f"{key}: {value}")
-    
-    def print_wan_ip(self):
+    def get_ip_address(self):
+        try:
+            stdin, stdout, stderr = self.ssh_client.exec_command("ifconfig")
+            return stdout.read().decode()
+        except Exception as e:
+            self.logger.error(f"Failed to get IP address: {e}")
+            raise e 
+
+    def get_connected_devices(self):
+        try:
+            stdin, stdout, stderr = self.ssh_client.exec_command("arp -a")
+            if stderr.read():
+                raise Exception(stderr.read().decode())
+            devices = []
+            for line in stdout:
+                devices.append(line.strip())
+            return devices
+        except Exception as e:
+            self.logger.error(f"Failed to get connected devices: {e}")
+            raise e
+        
+
+    def get_bandwidth_usage(self):
         pass
 
-def main():
-    file_name = "config.json"
-    config_file_path = os.path.join(os.path.dirname(__file__), file_name)
-    
-    print("Router restart script executed.")
-    router = Router(config_file_path)
-    router.load_config()
-    router.print_status()
+def init_router_ip_watcher(router, logger=None):
+    pass
 
-if __name__ == "__main__":
-    main()
+def init_router_connection(config, logger=None):
+    router = Router(config, logger)
+    return router
+    

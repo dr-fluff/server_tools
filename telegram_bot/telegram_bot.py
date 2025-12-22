@@ -1,5 +1,4 @@
 import os
-import telegram
 import threading
 import logging
 
