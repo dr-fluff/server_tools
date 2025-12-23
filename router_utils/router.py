@@ -104,17 +104,12 @@ class Router:
             return devices
         except Exception as e:
             self.logger.error(f"Failed to get connected devices: {e}")
-            raise e
-        
+            raise e    
 
-def init_router_ip_watcher(router, logger=None):
-    pass
+    def init_router_ip_watcher(router, logger=None):
+        pass
 
 def init_router_connection(config, logger=None):
     router = Router(config, logger)
-    
-    status = router.get_status()
-    print(f"[green]Router status: {status}[/green]")
-    
     return router
     

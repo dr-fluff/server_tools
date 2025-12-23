@@ -3,7 +3,7 @@ default_telegram_config_path = "configs/telegram.toml"
 default_router_config_path = "configs/router.toml"
 
 default_config_global = {
-    "log_level": "INFO",
+    "log_level": "DEBUG",
     "logging_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     "logging_file": "app.log",
 }

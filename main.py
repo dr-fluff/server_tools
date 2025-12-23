@@ -6,6 +6,8 @@ import queue
 import router_utils
 import config
 import telegram_bot
+from config.logger import get_logger
+from commands import handle_command
 
 def disconnect_all(router: router_utils.Router, telegram_bot: telegram_bot.TelegramBot, logger: logging.Logger) -> None:
     try:
@@ -27,15 +29,17 @@ def main() -> None:
         print(f"[red]Error loading global configuration: {e}[/red]")
         sys.exit(1)
     
-    logger = logging.getLogger(__name__)
-    logger.setLevel(global_config.get("log_level", "INFO"))
+    log_level_str = global_config.get("log_level", "DEBUG")
+    log_level = getattr(logging, log_level_str.upper(), logging.DEBUG)
+    log_file = global_config.get("logging_file", "app.log")
+    log_format = global_config.get("logging_format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logger = get_logger(log_file=log_file, level=log_level, log_format=log_format)
     logger.info("Logger initialized")
     
     try:
         telegram_config = config.Config("configs/telegram.toml", config_type=config.CONFIG_TELEGRAM, logger=logger)
         command_queue = queue.Queue()
-        bot = telegram_bot.TelegramBot(telegram_config, command_queue=command_queue)
-        bot.print_config()
+        bot = telegram_bot.TelegramBot(telegram_config, logger=logger, command_queue=command_queue)
         bot.start()
         
     except Exception as e:
@@ -52,18 +56,18 @@ def main() -> None:
 
 
     # Main loop
-    while True:
-        try:
-            command = command_queue.get(timeout=1)  # Wait for commands from bot
-            print(f"Processing command from Telegram: {command}")
-            # Here you can handle the command in your main program
-        except queue.Empty:
-            pass
-    
-        if KeyboardInterrupt:
-            print("Shutting down...")
-            disconnect_all(router, bot, logger)
-            break
+    try:
+        while True:
+            try:
+                command = command_queue.get(timeout=1) 
+                print(f"Received message from Telegram: {command}")
+                # Handle commands
+                handle_command(command, router, bot)
+            except queue.Empty:
+                pass
+    except KeyboardInterrupt:
+        print("Shutting down...")
+        disconnect_all(router, bot, logger)
     
 
 if __name__ == "__main__":

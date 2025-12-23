@@ -15,7 +15,10 @@ class Config:
             self.load()
             self.validate()
         except Exception as e:
-            logging.error(f"Error loading config: {e}")
+            if self.logger:
+                self.logger.error(f"Error loading config: {e}")
+            else:
+                logging.error(f"Error loading config: {e}")
             self.init_default(config_type)
     
     def init_default(self, config_type: int):
@@ -39,7 +42,10 @@ class Config:
             with open(self.config_file_path, "rb") as f:
                 self.config = tomllib.load(f)
         except Exception as e:
-            logging.error(f"Failed to load config file: {e}")
+            if self.logger:
+                self.logger.error(f"Failed to load config file: {e}")
+            else:
+                logging.error(f"Failed to load config file: {e}")
             raise ValueError(f"Failed to load config file: {e}")
         
         if not isinstance(self.config, dict):
