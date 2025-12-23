@@ -14,6 +14,9 @@ class Router:
         self.ssh_client = None
         self.ip = None
         self.devices = []
+        self.message_callback = None
+        self.last_ip_file = "last_ip.txt"
+        self.watcher_thread = None
         
         try:
             self.ssh_connect()
@@ -32,6 +35,13 @@ class Router:
         except Exception as e:
             self.logger.error(f"Failed to get connected devices: {e}")
             raise e
+        
+        # Load last known IP
+        self.load_last_ip()
+        
+        # Start IP watcher if enabled
+        if self.config.get("ip_watcher_enabled", False):
+            self.start_ip_watcher()
     
     def print_config(self):
         print("Router config:")
@@ -106,8 +116,64 @@ class Router:
             self.logger.error(f"Failed to get connected devices: {e}")
             raise e    
 
-    def init_router_ip_watcher(router, logger=None):
-        pass
+    def set_message_callback(self, callback):
+        self.message_callback = callback
+
+    def load_last_ip(self):
+        try:
+            if os.path.exists(self.last_ip_file):
+                with open(self.last_ip_file, 'r') as f:
+                    self.last_ip = f.read().strip()
+                self.logger.info(f"Loaded last IP: {self.last_ip}")
+            else:
+                self.last_ip = None
+        except Exception as e:
+            self.logger.error(f"Failed to load last IP: {e}")
+            self.last_ip = None
+
+    def save_last_ip(self, ip):
+        try:
+            with open(self.last_ip_file, 'w') as f:
+                f.write(ip)
+            self.logger.info(f"Saved last IP: {ip}")
+        except Exception as e:
+            self.logger.error(f"Failed to save last IP: {e}")
+
+    def start_ip_watcher(self):
+        if self.watcher_thread and self.watcher_thread.is_alive():
+            return
+        self.watcher_thread = threading.Thread(target=self.ip_watcher_loop, daemon=True)
+        self.watcher_thread.start()
+        self.logger.info("IP watcher started")
+
+    def stop_ip_watcher(self):
+        if self.watcher_thread:
+            # Note: Since it's daemon, it will stop with the process
+            self.logger.info("IP watcher stopped")
+
+    def ip_watcher_loop(self):
+        import time
+        while True:
+            if not self.config.get("ip_watcher_enabled", False):
+                break
+            try:
+                current_ip = self.get_external_ip()
+                if self.last_ip and current_ip != self.last_ip:
+                    message = f"🚨 Router IP changed!\nOld: {self.last_ip}\nNew: {current_ip}"
+                    if self.message_callback:
+                        self.message_callback(message)
+                    self.logger.warning(f"IP changed: {self.last_ip} -> {current_ip}")
+                if current_ip:
+                    self.save_last_ip(current_ip)
+                    self.last_ip = current_ip
+            except Exception as e:
+                self.logger.error(f"IP watcher error: {e}")
+            time.sleep(300)  # Check every 5 minutes
+
+    def get_external_ip(self):
+        # For now, assume get_ip_address returns external IP
+        # In reality, might need to parse or use a different command
+        return self.get_ip_address().split('\n')[1].split()[1] if '\n' in self.get_ip_address() else None
 
 def init_router_connection(config, logger=None):
     router = Router(config, logger)

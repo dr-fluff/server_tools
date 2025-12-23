@@ -21,6 +21,7 @@ default_config_router = {
     "username": "",
     "password": "",
     "ssh_port": 22,
+    "ip_watcher_enabled": False,
 }
 
 CONFIG_GLOBAL = 0

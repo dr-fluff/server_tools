@@ -1,4 +1,4 @@
-from rich import print
+import asyncio
 import logging
 import sys
 import queue
@@ -8,6 +8,20 @@ import config
 import telegram_bot
 from config.logger import get_logger
 from commands import handle_command
+
+async def handle_commands_loop(command_queue, router, bot, logger):
+    while True:
+        try:
+            # Non-blocking get with timeout
+            while not command_queue.empty():
+                command = command_queue.get_nowait()
+                logger.info(f"Received message from Telegram: {command}")
+                # Handle commands synchronously
+                handle_command(command, router, bot)
+            await asyncio.sleep(0.1)  # Small delay to prevent busy loop
+        except Exception as e:
+            logger.error(f"Error in command handling loop: {e}")
+            await asyncio.sleep(1)
 
 def disconnect_all(router: router_utils.Router, telegram_bot: telegram_bot.TelegramBot, logger: logging.Logger) -> None:
     try:
@@ -49,6 +63,7 @@ def main() -> None:
     try:
         router_config = config.Config("configs/router.toml", config_type=config.CONFIG_ROUTER, logger=logger)
         router = router_utils.init_router_connection(router_config, logger=logger)
+        router.set_message_callback(lambda msg: bot.send_message(msg))
         
     except Exception as e:
         logger.error(f"Error loading router configuration: {e}")

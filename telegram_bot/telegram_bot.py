@@ -16,6 +16,7 @@ class TelegramBot:
         self.thread = None
         self.app = None
         self.command_queue = command_queue or queue.Queue()
+        self.message_queue = queue.Queue()
         self.running = False
         
         if self.token is None or self.chat_id is None:
@@ -67,6 +68,17 @@ class TelegramBot:
         self.app.add_handler(MessageHandler(filters.COMMAND, self.handle_message))
         self.logger.info("Telegram bot initialized with handlers")
     
+    async def send_messages_task(self):
+        while self.running:
+            try:
+                text = self.message_queue.get(timeout=1)
+                await self.app.bot.send_message(chat_id=self.chat_id, text=text)
+                self.logger.info(f"Sent message: {text}")
+            except queue.Empty:
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                self.logger.error(f"Error sending message: {e}")
+
     def run(self):
         self.running = True
         max_retries = 3
@@ -77,9 +89,12 @@ class TelegramBot:
                     self.initialize()
                 self.logger.info("Starting Telegram bot polling...")
                 self.running = True
-                # Note: Can't send startup message until user initiates conversation
-                self.logger.info("Bot is ready to receive messages. Send /start or any message to test.")
-                self.app.run_polling(stop_signals=None)
+                # Start the message sending task in the same event loop
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                send_task = loop.create_task(self.send_messages_task())
+                loop.run_until_complete(self.app.run_polling(stop_signals=None))
+                send_task.cancel()
                 # If run_polling() exits normally, break the loop
                 break
             except Exception as e:
@@ -106,17 +121,14 @@ class TelegramBot:
             raise ValueError(f"Failed to start bot: {e}")
 
     def send_message(self, text):
-        if self.app is None or not self.running:
-            self.logger.warning("Bot not initialized or not running!")
+        if not self.running:
+            self.logger.warning("Bot not running!")
             return
         try:
-            bot: Bot = self.app.bot
-            asyncio.run(bot.send_message(chat_id=self.chat_id, text=text))
-            self.logger.info(f"Sent message: {text}")
+            self.message_queue.put(text)
+            self.logger.info(f"Queued message: {text}")
         except Exception as e:
-            self.logger.error(f"Error sending message: {e}")
-            # Optionally, disconnect on send error
-            self.disconnect()
+            self.logger.error(f"Error queuing message: {e}")
 
     def disconnect(self):
         self.running = False
