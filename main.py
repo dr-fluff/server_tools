@@ -87,3 +87,11 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
+# * TODO list
+# TODO: add command for updating setting is different file
+# TODO: use global ip not local for router watcher. ✅ DONE
+# TODO: Better command for enabling and disabling watcher ip ✅ DONE
+# TODO: When sending help command group the different commands to be abel to read it more easily.
+# TODO: When sending router devices command format the output to a more readable state and check if it is posable to get device names as well as the mac and ip
+

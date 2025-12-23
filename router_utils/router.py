@@ -159,10 +159,10 @@ class Router:
             try:
                 current_ip = self.get_external_ip()
                 if self.last_ip and current_ip != self.last_ip:
-                    message = f"🚨 Router IP changed!\nOld: {self.last_ip}\nNew: {current_ip}"
+                    message = f"🚨 Public IP changed!\nOld: {self.last_ip}\nNew: {current_ip}"
                     if self.message_callback:
                         self.message_callback(message)
-                    self.logger.warning(f"IP changed: {self.last_ip} -> {current_ip}")
+                    self.logger.warning(f"Public IP changed: {self.last_ip} -> {current_ip}")
                 if current_ip:
                     self.save_last_ip(current_ip)
                     self.last_ip = current_ip
@@ -171,9 +171,56 @@ class Router:
             time.sleep(300)  # Check every 5 minutes
 
     def get_external_ip(self):
-        # For now, assume get_ip_address returns external IP
-        # In reality, might need to parse or use a different command
-        return self.get_ip_address().split('\n')[1].split()[1] if '\n' in self.get_ip_address() else None
+        # Get the public IP by querying an external service from the router
+        try:
+            # Try curl first
+            stdin, stdout, stderr = self.ssh_client.exec_command("curl -s --connect-timeout 10 https://api.ipify.org")
+            ip = stdout.read().decode().strip()
+            if ip and self._is_valid_ip(ip):
+                return ip
+            
+            # Try wget if curl fails
+            stdin, stdout, stderr = self.ssh_client.exec_command("wget -q --timeout=10 -O- https://api.ipify.org")
+            ip = stdout.read().decode().strip()
+            if ip and self._is_valid_ip(ip):
+                return ip
+                
+            # Try another service with curl
+            stdin, stdout, stderr = self.ssh_client.exec_command("curl -s --connect-timeout 10 https://icanhazip.com")
+            ip = stdout.read().decode().strip()
+            if ip and self._is_valid_ip(ip):
+                return ip
+                
+            # Try another service with wget
+            stdin, stdout, stderr = self.ssh_client.exec_command("wget -q --timeout=10 -O- https://icanhazip.com")
+            ip = stdout.read().decode().strip()
+            if ip and self._is_valid_ip(ip):
+                return ip
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get external IP: {e}")
+        
+        # Fallback: try to get it from router's WAN interface
+        try:
+            # This is router-specific, but try some common commands
+            stdin, stdout, stderr = self.ssh_client.exec_command("ip route show default | awk '{print $3}'")
+            gateway_ip = stdout.read().decode().strip()
+            if gateway_ip and self._is_valid_ip(gateway_ip):
+                # This is not the public IP, but we can log it
+                self.logger.warning(f"Could not get public IP, gateway IP: {gateway_ip}")
+        except Exception as e:
+            self.logger.error(f"Failed to get gateway IP: {e}")
+        
+        return None
+    
+    def _is_valid_ip(self, ip):
+        # Simple IP validation
+        import re
+        pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        if re.match(pattern, ip):
+            parts = ip.split('.')
+            return all(0 <= int(part) <= 255 for part in parts)
+        return False
 
 def init_router_connection(config, logger=None):
     router = Router(config, logger)
